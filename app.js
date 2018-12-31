@@ -1,89 +1,56 @@
-var express          = require('express');
-var path             = require('path');
-var cookieParser     = require('cookie-parser');
-var bodyParser       = require('body-parser');
-var exphbs           = require('express-handlebars');
-var expressValidator = require('express-validator');
-var flash            = require('flash');
-var session          = require('express-session');
-var passport         = require('passport');
-var LocalStrategy    = require('passport-local').Strategy;
-var mongo            = require('mongodb');
-var mongoose         = require('mongoose');
+const express = require('express');
+const expressLayouts = require('express-ejs-layouts');
+const mongoose = require('mongoose');
+const flash = require('connect-flash');
+const session = require('express-session');
+const passport = require('passport');
 
-// DataBase connect
-var dburl = 'mongodb://dbhero:qwe123@ds133533.mlab.com:33533/loginapp';
-mongoose.connect(dburl, { 
-  useNewUrlParser: true,
-  useCreateIndex :  true 
-});
-var db = mongoose.connection;
+const app = express();
 
-var routes = require('./routes/index');
-var users = require('./routes/users');
+// Passport config
+require('./config/passport')(passport);
 
-// Init App
-var app = express();
+// DB Config
+const db = require('./config/keys').MongoURI;
 
-// View Engine
-app.set('views', path.join(__dirname, 'views'));
-app.engine('handlebars', exphbs({defaultLayout: 'layout'}));
-app.set('view engine', 'handlebars');
+// Connect to Mongo
+mongoose.connect(db, { useNewUrlParser: true })
+  .then(() => console.log('MongoDB connected ...'))
+  .catch(err => console.log(err));
 
-// BodyParser Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(cookieParser());
+// EJS
+app.use(expressLayouts);
+app.set('view engine', 'ejs');
 
-// Set Static Folder
-app.use(express.static(path.join(__dirname, 'public')));
+// Bodyparser
+app.use(express.urlencoded({ extended: false }))
 
-// Express Session
+// Exress Session
 app.use(session({
-  secret: 'secret',
-  saveUninitialized: true,
-  resave: true
+    secret: 'secret',
+    resave: true,
+    saveUninitialized: true,
 }));
 
-// Passport init
+// Passport middleware
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Express Validator
-app.use(expressValidator({
-  errorFormatter: (param, msg, value) => {
-      var namespace = param.split('.'),
-      root = namespace.shift(),
-      formParam = root;
-
-    while(namespace.length) {
-      formParam += `[ ${namespace.shift()} ]`;
-    }
-    return {
-      param: formParam,
-      msg  : msg,
-      value: value
-    };
-  }
-}));
-
-// Connect Flash
+// Connect flash
 app.use(flash());
 
-// Global vars
+// Global Vars
 app.use((req, res, next) => {
-  res.locals.success_msg = req.flash('success_msg');
-  res.locals.error_msg = req.flash('error_msg');
-  res.locals.error = req.flash('error');
-  next();
-});
+    res.locals.success_msg = req.flash('success_msg');
+    res.locals.error_msg = req.flash('error_msg');
+    res.locals.error = req.flash('error');    
+    next();
+})
 
-app.use('/', routes);
-app.use('/users', users);
+// Routes
+app.use('/', require('./routes/index'))
+app.use('/users', require('./routes/users'))
 
-// Set Port
-app.set('port', (process.env.PORT || 3000));
+const PORT = process.env.PORT || 8000;
 
-app.listen(app.get('port'), function(){
-  console.log(`Server listening port ${app.get('port')}`)
-});
+app.listen(PORT, console.log(`Listening on port ${PORT}`))
